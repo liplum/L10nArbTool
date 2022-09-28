@@ -63,6 +63,8 @@ args:
         default: n
 ---------------------
 migrate: an interactive migration tool with a wizard setup. 
+args:
+    you can specify arguments used in the wizard.
 --------------------------
 """
 

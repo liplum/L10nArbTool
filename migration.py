@@ -1,12 +1,29 @@
 from rearrange import *
 import resort
+from datetime import datetime, date
+import ntpath
 
 line = "----------------------------------------------"
-
+_workplace_path = "workplace.json"
+_cache_folder = ".l10n_arb_tool"
+_log_folder = "log"
 log = []
 
 
-class Config:
+def in_cache(sub: str) -> str:
+    return ntpath.join(_cache_folder, sub)
+
+
+def log_folder():
+    return in_cache(_log_folder)
+
+
+def log_path():
+    d = date.today().isoformat()
+    return ntpath.join(log_folder(), f"{d}.log")
+
+
+class Workplace:
     def __init__(self):
         self.indent = 2
         self.prefix = "app_"
@@ -15,11 +32,45 @@ class Config:
         self.resort_method = resort.Alphabetical
         self.auto_add = True
         self.keep_unmatched_meta = False
+        self.read_workplace = True
 
 
 other_arb_paths = []
 
-x = Config()
+x = Workplace()
+last_x = None
+
+
+def workplace_path():
+    return in_cache(_workplace_path)
+
+
+def save_workplace(workplace: Workplace = x):
+    path = workplace_path()
+    j = json.dumps(vars(workplace), ensure_ascii=False, indent=2)
+    write_fi(path, j)
+    Log(f"workplace saved at {path}.")
+
+
+# noinspection PyBroadException
+def read_workplace() -> Workplace | None:
+    path = workplace_path()
+    raw = try_read_fi(path)
+    workplace = None
+    if raw is not None:
+        Log(f"workplace was found at {path}")
+        try:
+            j = json.loads(raw)
+        except:
+            Log("workplace has been corrected.")
+            delete_fi(path)
+            Log("workplace was deleted.")
+            return None
+        workplace = Workplace()
+        for k, v in j.items():
+            if hasattr(workplace, k):
+                setattr(workplace, k, v)
+    return workplace
 
 
 def yn(reply: str) -> bool:
@@ -30,8 +81,23 @@ def D(*args):
     print(f"|>", *args)
 
 
+def DLog(*args):
+    content = ' '.join(args)
+    print(f"|>", content)
+    Log(content)
+
+
+# noinspection PyBroadException
 def Log(*args):
-    log.append(f"|> {' '.join(args)}", )
+    content = ' '.join(args)
+    now = datetime.now().strftime("%H:%M:%S")
+    content = f"[{now}] {content}\n"
+    if ensure_folder(log_folder()):
+        try:
+            append_fi(log_path(), content)
+        except:
+            pass
+    log.append(content)
 
 
 def C(prompt: str) -> str:
@@ -60,10 +126,10 @@ def cmd_add():
     tplist, tpmap = load_arb(path=template_path())
     if x.auto_add:
         rearrange_others_saved_re([new], tplist, x.indent, x.keep_unmatched_meta, fill_blank=True)
-        D(f"{new} was created and rearranged.")
+        DLog(f"{new} was created and rearranged.")
     else:
         rearrange_others_saved_re([new], tplist, x.indent, x.keep_unmatched_meta, fill_blank=False)
-        D(f"{new} was created.")
+        DLog(f"{new} was created.")
 
 
 def cmd_rename():
@@ -121,6 +187,7 @@ def cmd_rename():
         Dline("[renamed]")
 
 
+# noinspection PyBroadException
 def cmd_resort():
     size = len(resort.methods)
     if size == 0:
@@ -156,11 +223,32 @@ def cmd_log():
         D(ln)
 
 
+def cmd_set():
+    D("set the workplace")
+    D(f"enter \"#\" to quit [set].")
+    settings = x
+    fields = vars(settings)
+    for k, v in fields.items():
+        D(f"{k}={v}      << former")
+        while True:
+            inputted = C(f"{k}=")
+            if inputted == "#":
+                return
+            cast = try_cast(v, inputted)
+            if cast is None:
+                D(f"invalid input, \"{k}\"'s type is \"{type(v).__name__}\".")
+            else:
+                if hasattr(settings, k):
+                    setattr(settings, k, v)
+                break
+
+
 cmds: dict[str, Callable[[], None]] = {
     "add": cmd_add,
     "rename": cmd_rename,
     "resort": cmd_resort,
     "log": cmd_log,
+    "set": cmd_set,
 }
 cmd_names = list(cmds.keys())
 cmd_full_names = ', '.join(cmd_names)
@@ -204,10 +292,10 @@ def init():
             head, tail = ntpath.split(full)
             if tail != x.template_name and tail.endswith(".arb") and tail.startswith(x.prefix):
                 other_arb_paths.append(full)
-    Dline("[config]")
+    Dline("[workplace]")
     D(f"{x.indent=},{x.prefix=},{x.folder=},{x.auto_add=}")
     D(f"{x.resort_method=}")
-    Dline("[config]")
+    Dline("[workplace]")
     D(f"l10n folder locates at {os.path.abspath(x.folder)}")
     D(f"all .arb file paths: [")
     for p in other_arb_paths:
@@ -217,6 +305,7 @@ def init():
     D(f".arb files initialized.")
 
 
+# noinspection PyBroadException
 def setup_indent():
     D(f"please enter indent, \"{x.indent}\" as default")
     while True:
@@ -286,6 +375,7 @@ def setup_keep_unmatched_meta():
         return
 
 
+# noinspection PyBroadException
 def setup_auto_resort():
     D(f"\"auto_resort\" will resort when any file is change by migration, \"{x.resort_method}\" as default")
     while True:
@@ -318,7 +408,23 @@ all_setups: list[Callable[[], int | None]] = [
 
 
 def wizard():
+    global x
+    D("hello, I'm the migration wizard.")
     D("enter \"#\" to go back to previous setup.")
+    last = read_workplace()
+    if last is not None and last.read_workplace:
+        D(f"I found the workplace you last used at \"{workplace_path()}\"")
+        D(f"do you want to continue this work?")
+        continue_work = True
+        inputted = C("y/n=")
+        if inputted == "#":
+            return 1
+        if inputted != "":
+            continue_work = to_bool(inputted)
+        if continue_work:
+            x = last
+            D(f"oh nice, your workplace is restored.")
+            return
     index = 0
     while index < len(all_setups):
         cur = all_setups[index]
@@ -331,7 +437,7 @@ def wizard():
     return None
 
 
-def read_config_from(args: list[str]):
+def load_workplace_from(args: list[str]):
     paras = split_para(args)
     x.folder = From(paras, Get="folder", Or=x.folder)
     x.indent = int(From(paras, Get="indent", Or=x.indent))
@@ -339,6 +445,7 @@ def read_config_from(args: list[str]):
     x.auto_add = From(paras, Get="auto_add", Or=x.auto_add)
     x.template_name = From(paras, Get="template_name", Or=x.template_name)
     x.keep_unmatched_meta = From(paras, Get="keep_unmatched_meta", Or=x.keep_unmatched_meta)
+    x.read_workplace = From(paras, Get="read_workplace", Or=x.read_workplace)
 
 
 def main(args: list[str] = None):
@@ -347,15 +454,17 @@ def main(args: list[str] = None):
     D("if no input, the default value will be used.")
     D("for y/n question, enter key means \"yes\".")
     wizard_res = None
-    if args is None:
+    if args is None or len(args) == 0:
         wizard_res = wizard()
     else:
-        read_config_from(args)
+        load_workplace_from(args)
     Dline()
     if wizard_res is None:
         init()
         Dline()
         migrate()
+    save_workplace(x)
+    DLog("workplace saved")
     D(f"migration exited.")
 
 

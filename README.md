@@ -8,6 +8,6 @@
 Python >= 3.10
 
 ```shell
-python main.py
+% python main.py
 ```
 </div>

@@ -1,6 +1,8 @@
 from typing import List, Dict, TypeVar, Callable, Iterable, Any
 from difflib import SequenceMatcher
 import re
+import os
+from pathlib import Path
 
 T = TypeVar("T")
 
@@ -8,7 +10,7 @@ all_true = ["true", "yes", "y", "ok"]
 
 
 def to_bool(s: str, empty_means=False) -> bool:
-    if len(s) == 0 and empty_means: # empty_means True
+    if len(s) == 0 and empty_means:  # empty_means True
         return True
     else:
         return s.lower() in all_true
@@ -66,9 +68,56 @@ def read_fi(path: str, mode="r"):
         return f.read()
 
 
+def delete_fi(path: str) -> bool:
+    if os.path.exists(path):
+        try:
+            os.unlink(path)
+            return True
+        except:
+            return False
+    return True
+
+
+# noinspection PyBroadException
+def try_cast(template: T, attempt: str) -> T | None:
+    try:
+        if isinstance(template, str):
+            return str(attempt)
+        if isinstance(template, int):
+            return int(attempt)
+        if isinstance(template, bool):
+            return to_bool(attempt)
+    except:
+        return None
+    return None
+
+
+def try_read_fi(path: str, mode="r") -> None | str:
+    if os.path.isfile(path):
+        return read_fi(path, mode)
+    else:
+        return None
+
+
 def write_fi(path: str, content: str, mode="w"):
     with open(path, mode=mode, encoding="UTF-8") as f:
         f.write(content)
+
+
+def append_fi(path: str, content: str, mode="a"):
+    with open(path, mode=mode, encoding="UTF-8") as f:
+        f.write(content)
+
+
+def ensure_folder(path: str) -> bool:
+    if os.path.exists(path):
+        if os.path.isdir(path):
+            return True
+        else:
+            return False
+    else:
+        Path(path).mkdir(parents=True, exist_ok=True)
+        return True
 
 
 def fuzzy_match(target: str, candidates: Iterable[str]) -> tuple[str, float]:
