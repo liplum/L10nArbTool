@@ -33,6 +33,7 @@ class Workplace:
         self.auto_add = True
         self.keep_unmatched_meta = False
         self.read_workplace = True
+        self.auto_read_workplace = False
 
 
 other_arb_paths = []
@@ -255,9 +256,9 @@ cmd_full_names = ', '.join(cmd_names)
 
 
 def run_cmd(name: str, func: Callable[[], None]):
-    Dline(f"[{name}]")
+    Dline(f">>[{name}]<<")
     func()
-    D(f"[{name}] exists")
+    Dline(f"<<[{name}]>>")
 
 
 def migrate():
@@ -412,19 +413,31 @@ def wizard():
     D("hello, I'm the migration wizard.")
     D("enter \"#\" to go back to previous setup.")
     last = read_workplace()
-    if last is not None and last.read_workplace:
-        D(f"I found the workplace you last used at \"{workplace_path()}\"")
-        D(f"do you want to continue this work?")
-        continue_work = True
-        inputted = C("y/n=")
-        if inputted == "#":
-            return 1
-        if inputted != "":
-            continue_work = to_bool(inputted)
-        if continue_work:
+    if last is not None:
+        if last.auto_read_workplace:
             x = last
-            D(f"oh nice, your workplace is restored.")
-            return
+            D(f"I restored the workplace you last used at \"{workplace_path()}\".")
+        elif last.read_workplace:
+            D(f"I found the workplace you last used at \"{workplace_path()}\"")
+            D(f"do you want to continue this work?")
+            continue_work = True
+            inputted = C("y/n=")
+            if inputted == "#":
+                return 1
+            if inputted != "":
+                continue_work = to_bool(inputted)
+            if continue_work:
+                x = last
+                D(f"oh nice, your workplace is restored.")
+                D(f"do you want to auto restore workplace next time?")
+                inputted = C("y/n=")
+                auto_restore = True
+                if inputted == "#":
+                    return 1
+                if inputted != "":
+                    auto_restore = to_bool(inputted)
+                last.auto_read_workplace = auto_restore
+        return
     index = 0
     while index < len(all_setups):
         cur = all_setups[index]
@@ -452,7 +465,7 @@ def main(args: list[str] = None):
     Dline()
     D("welcome to migration !")
     D("if no input, the default value will be used.")
-    D("for y/n question, enter key means \"yes\".")
+    D("for y/n question, the enter key means \"yes\".")
     wizard_res = None
     if args is None or len(args) == 0:
         wizard_res = wizard()
