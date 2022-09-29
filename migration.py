@@ -1,13 +1,19 @@
+import serve
 from rearrange import *
 import resort
 from datetime import datetime, date
 import ntpath
+import ui
+from threading import Thread
 
 line = "----------------------------------------------"
 _workplace_path = "workplace.json"
 _cache_folder = ".l10n_arb_tool"
 _log_folder = "log"
-log = []
+logs = []
+serve_thread: Thread | None = None
+
+background_tasks = set()
 
 
 def in_cache(sub: str) -> str:
@@ -74,35 +80,53 @@ def read_workplace() -> Workplace | None:
     return workplace
 
 
+def D(*args):
+    ui.terminal.print(*args)
+
+
+def DLog(*args):
+    ui.terminal.print_log(*args)
+
+
+def Log(*args):
+    ui.terminal.log(*args)
+
+
+def C(prompt: str) -> str:
+    return ui.terminal.input(prompt)
+
+
 def yn(reply: str) -> bool:
     return to_bool(reply, empty_means=True)
 
 
-def D(*args):
-    print(f"|>", *args)
+def print_background_tasks():
+    D(f"bg tasks: [{', '.join(background_tasks)}]")
 
 
-def DLog(*args):
-    content = ' '.join(args)
-    print(f"|>", content)
-    Log(content)
+class MigrationTerminal(ui.Terminal):
+    def print(self, *args):
+        print(f"|>", *args)
 
+    def print_log(self, *args):
+        content = ' '.join(args)
+        print(f"|>", content)
+        self.log(content)
 
-# noinspection PyBroadException
-def Log(*args):
-    content = ' '.join(args)
-    now = datetime.now().strftime("%H:%M:%S")
-    content = f"[{now}] {content}\n"
-    if ensure_folder(log_folder()):
-        try:
-            append_fi(log_path(), content)
-        except:
-            pass
-    log.append(content)
+    # noinspection PyBroadException
+    def log(self, *args):
+        content = ' '.join(args)
+        now = datetime.now().strftime("%H:%M:%S")
+        content = f"[{now}] {content}\n"
+        if ensure_folder(log_folder()):
+            try:
+                append_fi(log_path(), content)
+            except:
+                pass
+        logs.append(content)
 
-
-def C(prompt: str) -> str:
-    return input(f"|>   {prompt}")
+    def input(self, prompt: str) -> str:
+        return input(f"|>   {prompt}")
 
 
 def template_path():
@@ -178,11 +202,12 @@ def cmd_rename():
                     arb.add(p)
                     Log(f"added \"{new}\" in \"{arb.file_name()}\".")
 
-        if x.resort_method is not None:  # auto_resort
+        if x.resort_method is not None and serve_thread is None:  # auto_resort is enabled
             resorted = resort.methods[x.resort_method](template_arb.plist, template_arb.pmap)
             template_arb.plist = resorted
             rearrange_others(other_arbs, template_arb, fill_blank=x.auto_add)
-        for arb in arbs:
+        all_saved = arbs if serve_thread is None else [template_arb]
+        for arb in all_saved:
             save_flatten(arb, x.indent, x.keep_unmatched_meta)
             Log(f"{arb.file_name()} saved.")
         Dline("[renamed]")
@@ -220,7 +245,7 @@ def cmd_resort():
 
 
 def cmd_log():
-    for ln in log:
+    for ln in logs:
         D(ln)
 
 
@@ -244,12 +269,64 @@ def cmd_set():
                 break
 
 
+serve_is_running = False
+
+
+class NestedServerTerminal(ui.Terminal):
+    def print(self, *args):
+        Log(*args)
+
+    def print_log(self, *args):
+        Log(*args)
+
+    def log(self, *args):
+        Log(*args)
+
+
+def cmd_serve():
+    global serve_thread, serve_is_running
+    D(f"[serve] will detect changes of \"{x.template_name}\" and rearrange others at background.")
+    D(f"do you want to start the server?")
+    reply = C("y/n=")
+    if reply == "#":
+        return
+    start = yn(reply)
+    if not start:
+        return
+    if serve_thread is None:
+        server_is_running = True
+
+        def serve_func():
+            serve.start(template_path(), other_arb_paths,
+                        x.indent, x.keep_unmatched_meta, fill_blank=True,
+                        is_running=lambda: server_is_running,
+                        terminal=NestedServerTerminal())
+
+        serve_thread = Thread(target=serve_func)
+        serve_thread.daemon = True
+        serve_thread.start()
+        background_tasks.add("serve")
+        DLog(f"server started at background.")
+    else:
+        D("server has been started, do you want to stop it?")
+        reply = C("y/n=")
+        if reply == "#":
+            return
+        stop = yn(reply)
+        if "serve" in background_tasks:
+            background_tasks.remove("serve")
+        if stop:
+            server_is_running = False
+            DLog(f"server aborted.")
+
+
 cmds: dict[str, Callable[[], None]] = {
     "add": cmd_add,
     "rename": cmd_rename,
     "resort": cmd_resort,
     "log": cmd_log,
     "set": cmd_set,
+    "serve": cmd_serve,
 }
 cmd_names = list(cmds.keys())
 cmd_full_names = ', '.join(cmd_names)
@@ -265,6 +342,8 @@ def migrate():
     while True:
         D(f"enter \"quit\" or \"#\" to quit migration.")
         D(f"all cmds: [{cmd_full_names}]")
+        if len(background_tasks) > 0:
+            print_background_tasks()
         name = C("% ")
         if name == "quit" or name == "#":
             return
@@ -425,7 +504,7 @@ def wizard():
             if inputted == "#":
                 return 1
             if inputted != "":
-                continue_work = to_bool(inputted)
+                continue_work = yn(inputted)
             if continue_work:
                 x = last
                 D(f"oh nice, your workplace is restored.")
@@ -435,7 +514,7 @@ def wizard():
                 if inputted == "#":
                     return 1
                 if inputted != "":
-                    auto_restore = to_bool(inputted)
+                    auto_restore = yn(inputted)
                 last.auto_read_workplace = auto_restore
         return
     index = 0
@@ -462,6 +541,7 @@ def load_workplace_from(args: list[str]):
 
 
 def main(args: list[str] = None):
+    ui.terminal = MigrationTerminal()
     Dline()
     D("welcome to migration !")
     D("if no input, the default value will be used.")

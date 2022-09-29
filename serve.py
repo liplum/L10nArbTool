@@ -2,8 +2,8 @@ from arb import *
 import os
 import ntpath
 import rearrange as re
-from datetime import datetime
 import time
+import ui
 
 required_para = [
     "prefix",
@@ -24,13 +24,27 @@ def wrapper(args):
     serve(teplt_head, prefix, template_suffix, indent, keep_unmatched_meta, fill_blank)
 
 
+# noinspection PyBroadException
 def serve(l10n_dir: str, prefix: str, template_suffix: str, indent=2, keep_unmatched_meta=False, fill_blank=True):
     template_fullname = prefix + template_suffix
     template_path = ntpath.join(l10n_dir, template_fullname)
     others_path = re.collect_others(l10n_dir, prefix, template_fullname)
+    start(template_path, others_path, indent, keep_unmatched_meta, fill_blank)
+
+
+def _forever() -> bool:
+    return True
+
+
+def start(
+        template_path: str, other_paths: list[str],
+        indent=2, keep_unmatched_meta=False, fill_blank=True,
+        is_running: Callable[[], bool] = _forever,
+        terminal: ui.Terminal = ui.terminal
+):
     last_stamp = 0
     last_plist = []
-    while True:
+    while is_running():
         stamp = os.stat(template_path).st_mtime
         if stamp != last_stamp:
             last_stamp = stamp
@@ -38,8 +52,8 @@ def serve(l10n_dir: str, prefix: str, template_suffix: str, indent=2, keep_unmat
                 tplist, tpmap = load_arb(path=template_path)
                 if is_key_changed(last_plist, tplist):
                     last_plist = tplist
-                    re.rearrange_others_saved_re(others_path, tplist, indent, keep_unmatched_meta, fill_blank)
-                    print(f"[{datetime.now()}] refreshed.")
+                    re.rearrange_others_saved_re(other_paths, tplist, indent, keep_unmatched_meta, fill_blank)
+                    terminal.print_log(f"l10n refreshed.")
             except:
                 pass
         time.sleep(1)
