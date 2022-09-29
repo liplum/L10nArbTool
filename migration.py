@@ -148,9 +148,11 @@ def Dline(center: str = None):
         print(f"|>-------------------{center}-------------------")
 
 
-def cmd_add():
-    D(f"enter a file name to be created.")
-    name = input("% ")
+def cmd_add(args: list[str] = ()):
+    D(f"enter a file name to be created. enter \"#\" to quit.")
+    name = C("% ")
+    if name == "#":
+        return
     new = ntpath.join(x.l10n_folder, name)
     tplist, tpmap = load_arb(path=template_path())
     if x.auto_add:
@@ -161,7 +163,7 @@ def cmd_add():
         DLog(f"{new} was created.")
 
 
-def cmd_rename():
+def cmd_rename(args: list[str] = ()):
     D(f"enter old name and then new name. enter \"#\" to quit.")
     while True:
         template_arb = load_arb_from(path=template_path())
@@ -220,7 +222,7 @@ def cmd_rename():
 
 
 # noinspection PyBroadException
-def cmd_resort():
+def cmd_resort(args: list[str] = ()):
     size = len(resort.methods)
     if size == 0:
         D("No resort available.")
@@ -255,7 +257,7 @@ def cmd_log():
         D(ln)
 
 
-def cmd_set():
+def cmd_set(args: list[str] = ()):
     D("set the workplace")
     D(f"enter \"#\" to quit [set]. enter \"?\" to skip one.")
     settings = x
@@ -291,7 +293,7 @@ class NestedServerTerminal(ui.Terminal):
         Log(*args)
 
 
-def cmd_serve():
+def cmd_serve(args: list[str] = ()):
     global serve_thread, serve_is_running
     D(f"[serve] will detect changes of \"{x.template_name}\" and rearrange others at background.")
     D(f"do you want to start the server?")
@@ -329,11 +331,11 @@ def cmd_serve():
             DLog(f"server aborted.")
 
 
-def refresh():
+def refresh(args: list[str] = ()):
     flutter.gen_110n(x.project_root)
 
 
-def cmd_refresh():
+def cmd_refresh(args: list[str] = ()):
     D(f"[refresh] will regenerate the .dart file by calling \"flutter gen-l10n\".")
     refresh()
 
@@ -573,25 +575,31 @@ def wizard():
     return None
 
 
-def load_workplace_from(args: list[str]):
+def load_workplace_from(args: list[str] = ()):
     paras = split_para(args)
-    x.l10n_folder = From(paras, Get="folder", Or=x.l10n_folder)
-    x.indent = int(From(paras, Get="indent", Or=x.indent))
-    x.prefix = From(paras, Get="prefix", Or=x.prefix)
-    x.auto_add = From(paras, Get="auto_add", Or=x.auto_add)
-    x.template_name = From(paras, Get="template_name", Or=x.template_name)
-    x.keep_unmatched_meta = From(paras, Get="keep_unmatched_meta", Or=x.keep_unmatched_meta)
-    x.read_workplace = From(paras, Get="read_workplace", Or=x.read_workplace)
+    settings = x
+    fields = vars(settings)
+    for k, v in fields.items():
+        while True:
+            given = From(paras, Get=k, Or=None)
+            if given is not None:
+                cast = try_cast(v, given)
+                if cast is None:
+                    D(f"invalid input, \"{k}\"'s type is \"{type(v).__name__}\".")
+                else:
+                    if hasattr(settings, k):
+                        setattr(settings, k, v)
+                    break
 
 
-def main(args: list[str] = None):
+def main(args: list[str] = ()):
     ui.terminal = MigrationTerminal()
     Dline()
     D(f"welcome to migration v{migration_version} !")
     D("if no input, the default value will be used.")
     D("for y/n question, the enter key means \"yes\".")
     wizard_res = None
-    if args is None or len(args) == 0:
+    if len(args) == 0:
         wizard_res = wizard()
     else:
         load_workplace_from(args)
