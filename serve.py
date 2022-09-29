@@ -58,7 +58,7 @@ def start(
                 if is_key_changed(last_plist, tplist):
                     last_plist = tplist
                     re.rearrange_others_saved_re(other_paths, tplist, indent, keep_unmatched_meta, fill_blank)
-                    terminal.print_log(f"l10n refreshed.")
+                    terminal.print_log(f"l10n rearranged.")
                     on_rearranged()
             except:
                 pass

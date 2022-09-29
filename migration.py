@@ -339,12 +339,14 @@ def cmd_set(args: Args = ()):
         for k, v in paras.items():
             if k in fields:
                 old_v = fields[k]
-                cast = try_cast(old_v, v)
+                cast = try_cast(template=old_v, attempt=v)
                 if cast is None:
-                    D(f"invalid input, \"{k}\"'s type is \"{type(v).__name__}\".")
+                    D(f"invalid input, \"{k}\"'s type is \"{type(old_v).__name__}\".")
                 else:
                     if hasattr(settings, k):
                         setattr(settings, k, v)
+            else:
+                D(f"{k} doesn't exist.")
     else:
         D("set the workplace")
         D(f"enter \"#\" to quit [set]. enter \"?\" to skip one.")
@@ -356,7 +358,7 @@ def cmd_set(args: Args = ()):
                     return
                 if inputted == "?":
                     break
-                cast = try_cast(v, inputted)
+                cast = try_cast(template=v, attempt=inputted)
                 if cast is None:
                     D(f"invalid input, \"{k}\"'s type is \"{type(v).__name__}\".")
                 else:
@@ -640,11 +642,11 @@ def setup_auto_resort():
 
 
 # noinspection PyBroadException
-def setup_auto_refresh():
-    D(f"\"auto_refresh\" will re-generate .dart file when any change by migration, \"{x.auto_rebuild}\" as default")
+def setup_auto_rebuild():
+    D(f"\"auto_rebuild\" will re-generate .dart file when any change by migration, \"{x.auto_rebuild}\" as default")
     while True:
         while True:
-            inputted = C("auto_refresh=")
+            inputted = C("auto_rebuild=")
             if inputted == "#":
                 return 1
             if inputted != "":
@@ -713,15 +715,17 @@ def load_workplace_from(args: Args = ()) -> Args:
         x = last
     paras = split_para(args)
     fields = vars(x)
-    for k, v in fields.items():
-        given = From(paras, Get=k, Or=None)
-        if given is not None:
-            cast = try_cast(v, given)
+    for k, v in paras.items():
+        if k in fields:
+            old_v = fields[k]
+            cast = try_cast(template=old_v, attempt=v)
             if cast is None:
-                D(f"invalid input, \"{k}\"'s type is \"{type(v).__name__}\".")
+                D(f"invalid input, \"{k}\"'s type is \"{type(old_v).__name__}\".")
             else:
                 if hasattr(x, k):
                     setattr(x, k, v)
+        else:
+            D(f"{k} doesn't exist.")
     if "args" in paras:
         return shlex.split(paras["args"])
     else:

@@ -83,13 +83,13 @@ def delete_fi(path: str) -> bool:
 
 
 # noinspection PyBroadException
-def try_cast(template: T, attempt: str) -> T | None:
+def try_cast(*, template: T, attempt: str) -> T | None:
     try:
-        if isinstance(template, str):
+        if type(template) == str:
             return str(attempt)
-        if isinstance(template, int):
+        if type(template) == int:
             return int(attempt)
-        if isinstance(template, bool):
+        if type(template) == bool:
             return to_bool(attempt)
     except:
         return None
