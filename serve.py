@@ -36,10 +36,15 @@ def _forever() -> bool:
     return True
 
 
+def _do_nothing():
+    pass
+
+
 def start(
         template_path: str, other_paths: list[str],
         indent=2, keep_unmatched_meta=False, fill_blank=True,
         is_running: Callable[[], bool] = _forever,
+        on_rearranged: Callable[[], None] = _do_nothing,
         terminal: ui.Terminal = ui.terminal
 ):
     last_stamp = 0
@@ -54,6 +59,7 @@ def start(
                     last_plist = tplist
                     re.rearrange_others_saved_re(other_paths, tplist, indent, keep_unmatched_meta, fill_blank)
                     terminal.print_log(f"l10n refreshed.")
+                    on_rearranged()
             except:
                 pass
         time.sleep(1)

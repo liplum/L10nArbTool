@@ -308,6 +308,7 @@ def cmd_serve():
             serve.start(template_path(), other_arb_paths,
                         x.indent, x.keep_unmatched_meta, fill_blank=True,
                         is_running=lambda: server_is_running,
+                        on_rearranged=lambda: refresh() if x.auto_refresh else None,
                         terminal=NestedServerTerminal())
 
         serve_thread = Thread(target=serve_func)
