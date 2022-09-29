@@ -150,9 +150,16 @@ def Dline(center: str = None):
 
 def cmd_add(args: list[str] = ()):
     D(f"enter a file name to be created. enter \"#\" to quit.")
-    name = C("% ")
-    if name == "#":
-        return
+    while True:
+        name = C("% ")
+        if name == "#":
+            return
+        valid = validate_file_name(name)
+        if not valid:
+            D(f"invalid file name \"{name}\", plz try again.")
+        else:
+            break
+    name = suffix_arb(name)
     new = ntpath.join(x.l10n_folder, name)
     tplist, tpmap = load_arb(path=template_path())
     if x.auto_add:

@@ -1,3 +1,5 @@
+from json import JSONDecodeError
+
 from arb import *
 import os
 import ntpath
@@ -77,7 +79,11 @@ def rearrange_others_saved_re(
 ):
     others_arb = []
     for other_path in others_path:
-        others_arb.append(load_arb_from(path=other_path))
+        try:
+            arb = load_arb_from(path=other_path)
+        except FileNotFoundError or JSONDecodeError:
+            arb = ArbFile(other_path, [], {})
+        others_arb.append(arb)
     for arb in others_arb:
         new_plist = []
         for tp in template_plist:

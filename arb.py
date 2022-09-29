@@ -1,5 +1,4 @@
 import ntpath
-import os
 
 from util import *
 from pair import *
@@ -40,6 +39,13 @@ class ArbFile:
 
 OrderedJson = OrderedDict[str, Any]
 jcoder = json.JSONDecoder(object_hook=OrderedDict)
+
+
+def suffix_arb(file_name: str) -> str:
+    if not file_name.endswith(".arb"):
+        return f"{file_name}.arb"
+    else:
+        return file_name
 
 
 def load_arb(

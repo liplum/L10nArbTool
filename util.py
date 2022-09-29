@@ -155,3 +155,17 @@ def env_var_str(name: str) -> str:
         return f"%{name}%"
     else:
         return f"${name}"
+
+
+invalid_file_name_parts = [
+    '<', '>', ':', ':', ':', '', '/', '\\', '|', '?', '*'
+]
+
+
+def validate_file_name(name: str) -> bool:
+    if name == "." or name == "..":
+        return False
+    for char in name:
+        if char in invalid_file_name_parts:
+            return False
+    return True
