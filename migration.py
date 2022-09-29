@@ -1,3 +1,4 @@
+import flutter
 import serve
 from rearrange import *
 import resort
@@ -12,7 +13,7 @@ _cache_folder = ".l10n_arb_tool"
 _log_folder = "log"
 logs = []
 serve_thread: Thread | None = None
-
+migration_version = 1
 background_tasks = set()
 
 
@@ -31,15 +32,18 @@ def log_path():
 
 class Workplace:
     def __init__(self):
+        self.version = migration_version
         self.indent = 2
         self.prefix = "app_"
-        self.folder = "lib/l10n"
+        self.l10n_folder = "lib/l10n"
+        self.project_root = "."
         self.template_name = "app_en.arb"
         self.resort_method = resort.Alphabetical
         self.auto_add = True
         self.keep_unmatched_meta = False
         self.read_workplace = True
         self.auto_read_workplace = False
+        self.auto_refresh = False
 
 
 other_arb_paths = []
@@ -130,11 +134,11 @@ class MigrationTerminal(ui.Terminal):
 
 
 def template_path():
-    return ntpath.join(x.folder, x.template_name)
+    return ntpath.join(x.l10n_folder, x.template_name)
 
 
 def template_path_abs():
-    return os.path.abspath(ntpath.join(x.folder, x.template_name))
+    return os.path.abspath(ntpath.join(x.l10n_folder, x.template_name))
 
 
 def Dline(center: str = None):
@@ -147,7 +151,7 @@ def Dline(center: str = None):
 def cmd_add():
     D(f"enter a file name to be created.")
     name = input("% ")
-    new = ntpath.join(x.folder, name)
+    new = ntpath.join(x.l10n_folder, name)
     tplist, tpmap = load_arb(path=template_path())
     if x.auto_add:
         rearrange_others_saved_re([new], tplist, x.indent, x.keep_unmatched_meta, fill_blank=True)
@@ -202,14 +206,16 @@ def cmd_rename():
                     arb.add(p)
                     Log(f"added \"{new}\" in \"{arb.file_name()}\".")
 
-        if x.resort_method is not None and serve_thread is None:  # auto_resort is enabled
+        if x.resort_method is not None:  # auto_resort is enabled
             resorted = resort.methods[x.resort_method](template_arb.plist, template_arb.pmap)
             template_arb.plist = resorted
-            rearrange_others(other_arbs, template_arb, fill_blank=x.auto_add)
-        all_saved = arbs if serve_thread is None else [template_arb]
-        for arb in all_saved:
+            if serve_thread is None:
+                rearrange_others(other_arbs, template_arb, fill_blank=x.auto_add)
+        for arb in arbs:
             save_flatten(arb, x.indent, x.keep_unmatched_meta)
             Log(f"{arb.file_name()} saved.")
+        if x.auto_refresh:
+            flutter.gen_110n(x.project_root)
         Dline("[renamed]")
 
 
@@ -251,7 +257,7 @@ def cmd_log():
 
 def cmd_set():
     D("set the workplace")
-    D(f"enter \"#\" to quit [set].")
+    D(f"enter \"#\" to quit [set]. enter \"?\" to skip one.")
     settings = x
     fields = vars(settings)
     for k, v in fields.items():
@@ -260,6 +266,8 @@ def cmd_set():
             inputted = C(f"{k}=")
             if inputted == "#":
                 return
+            if inputted == "?":
+                break
             cast = try_cast(v, inputted)
             if cast is None:
                 D(f"invalid input, \"{k}\"'s type is \"{type(v).__name__}\".")
@@ -320,6 +328,15 @@ def cmd_serve():
             DLog(f"server aborted.")
 
 
+def refresh():
+    flutter.gen_110n(x.project_root)
+
+
+def cmd_refresh():
+    D(f"[refresh] will regenerate the .dart file by calling \"flutter gen-l10n\".")
+    refresh()
+
+
 cmds: dict[str, Callable[[], None]] = {
     "add": cmd_add,
     "rename": cmd_rename,
@@ -327,6 +344,7 @@ cmds: dict[str, Callable[[], None]] = {
     "log": cmd_log,
     "set": cmd_set,
     "serve": cmd_serve,
+    "r": cmd_refresh
 }
 cmd_names = list(cmds.keys())
 cmd_full_names = ', '.join(cmd_names)
@@ -366,17 +384,17 @@ def migrate():
 
 def init():
     D("initializing .arb files...")
-    for f in os.listdir(x.folder):
-        full = ntpath.join(x.folder, f)
+    for f in os.listdir(x.l10n_folder):
+        full = ntpath.join(x.l10n_folder, f)
         if os.path.isfile(full):
             head, tail = ntpath.split(full)
             if tail != x.template_name and tail.endswith(".arb") and tail.startswith(x.prefix):
                 other_arb_paths.append(full)
     Dline("[workplace]")
-    D(f"{x.indent=},{x.prefix=},{x.folder=},{x.auto_add=}")
+    D(f"{x.indent=},{x.prefix=},{x.l10n_folder=},{x.auto_add=}")
     D(f"{x.resort_method=}")
     Dline("[workplace]")
-    D(f"l10n folder locates at {os.path.abspath(x.folder)}")
+    D(f"l10n folder locates at {os.path.abspath(x.l10n_folder)}")
     D(f"all .arb file paths: [")
     for p in other_arb_paths:
         D(f"{os.path.abspath(p)}")
@@ -400,6 +418,28 @@ def setup_indent():
             D("input is invalid, plz try again.")
 
 
+def setup_project_root():
+    D(f"please enter the path of project root, \"{x.project_root}\" as default")
+    while True:
+        inputted = C("project_root=")
+        if inputted == "#":
+            return 1
+        if inputted != "":
+            x.project_root = inputted
+        return
+
+
+def setup_l10n_folder():
+    D(f"please enter path of l10n folder, \"{x.l10n_folder}\" as default")
+    while True:
+        inputted = C("l10n_folder=")
+        if inputted == "#":
+            return 1
+        if inputted != "":
+            x.l10n_folder = inputted
+        return
+
+
 def setup_prefix():
     D(f"please enter prefix of .arb file name, \"{x.prefix}\" as default")
     while True:
@@ -408,17 +448,6 @@ def setup_prefix():
             return 1
         if inputted != "":
             x.prefix = inputted
-        return
-
-
-def setup_folder():
-    D(f"please enter l10n folder path, \"{x.folder}\" as default")
-    while True:
-        inputted = C("folder=")
-        if inputted == "#":
-            return 1
-        if inputted != "":
-            x.folder = inputted
         return
 
 
@@ -457,7 +486,7 @@ def setup_keep_unmatched_meta():
 
 # noinspection PyBroadException
 def setup_auto_resort():
-    D(f"\"auto_resort\" will resort when any file is change by migration, \"{x.resort_method}\" as default")
+    D(f"\"auto_resort\" will resort when any change by migration, \"{x.resort_method}\" as default")
     while True:
         for index, name in resort.id2methods.items():
             D(f"{index}: {name}")  # index 2 name
@@ -476,8 +505,22 @@ def setup_auto_resort():
             D("input is invalid, plz try again.")
 
 
+# noinspection PyBroadException
+def setup_auto_refresh():
+    D(f"\"auto_refresh\" will re-generate .dart file when any change by migration, \"{x.auto_refresh}\" as default")
+    while True:
+        while True:
+            inputted = C("auto_refresh=")
+            if inputted == "#":
+                return 1
+            if inputted != "":
+                x.auto_refresh = to_bool(inputted)
+            return
+
+
 all_setups: list[Callable[[], int | None]] = [
-    setup_folder,
+    setup_project_root,
+    setup_l10n_folder,
     setup_indent,
     setup_prefix,
     setup_template_name,
@@ -492,7 +535,7 @@ def wizard():
     D("hello, I'm the migration wizard.")
     D("enter \"#\" to go back to previous setup.")
     last = read_workplace()
-    if last is not None:
+    if last is not None and last.version == migration_version:
         if last.auto_read_workplace:
             x = last
             D(f"I restored the workplace you last used at \"{workplace_path()}\".")
@@ -531,7 +574,7 @@ def wizard():
 
 def load_workplace_from(args: list[str]):
     paras = split_para(args)
-    x.folder = From(paras, Get="folder", Or=x.folder)
+    x.l10n_folder = From(paras, Get="folder", Or=x.l10n_folder)
     x.indent = int(From(paras, Get="indent", Or=x.indent))
     x.prefix = From(paras, Get="prefix", Or=x.prefix)
     x.auto_add = From(paras, Get="auto_add", Or=x.auto_add)
@@ -543,7 +586,7 @@ def load_workplace_from(args: list[str]):
 def main(args: list[str] = None):
     ui.terminal = MigrationTerminal()
     Dline()
-    D("welcome to migration !")
+    D(f"welcome to migration v{migration_version} !")
     D("if no input, the default value will be used.")
     D("for y/n question, the enter key means \"yes\".")
     wizard_res = None

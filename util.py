@@ -3,10 +3,13 @@ from difflib import SequenceMatcher
 import re
 import os
 from pathlib import Path
+import platform
 
 T = TypeVar("T")
 
 all_true = ["true", "yes", "y", "ok"]
+
+system_type = platform.system()
 
 
 def to_bool(s: str, empty_means=False) -> bool:
@@ -145,3 +148,10 @@ def validate_key(key: str) -> bool:
     if key_regex.match(key) is None:
         return False
     return True
+
+
+def env_var_str(name: str) -> str:
+    if system_type == "Windows":
+        return f"%{name}%"
+    else:
+        return f"${name}"
