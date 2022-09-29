@@ -1,4 +1,4 @@
-from typing import List, Dict, TypeVar, Callable, Iterable, Any
+from typing import List, Dict, TypeVar, Callable, Iterable, Any, Sequence
 from difflib import SequenceMatcher
 import re
 import os
@@ -19,7 +19,7 @@ def to_bool(s: str, empty_means=False) -> bool:
         return s.lower() in all_true
 
 
-def split_para(args: List[str],
+def split_para(args: Iterable[str],
                heading="", equal="=") -> Dict[str, str]:
     paras = {}
     for arg in args:
@@ -30,7 +30,7 @@ def split_para(args: List[str],
     return paras
 
 
-def check_para_exist(test: Dict[str, str], required: List[str]):
+def check_para_exist(test: Dict[str, str], required: Iterable[str]):
     for name in required:
         if name not in test.keys():
             raise Exception(f"parameter \"{name}\" is missing")
@@ -71,6 +71,7 @@ def read_fi(path: str, mode="r"):
         return f.read()
 
 
+# noinspection PyBroadException
 def delete_fi(path: str) -> bool:
     if os.path.exists(path):
         try:

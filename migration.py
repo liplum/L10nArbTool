@@ -1,3 +1,5 @@
+from typing import Sequence
+
 import flutter
 import serve
 from rearrange import *
@@ -6,6 +8,7 @@ from datetime import datetime, date
 import ntpath
 import ui
 from threading import Thread
+import shlex
 
 line = "----------------------------------------------"
 _workplace_path = "workplace.json"
@@ -43,8 +46,11 @@ class Workplace:
         self.keep_unmatched_meta = False
         self.read_workplace = True
         self.auto_read_workplace = False
-        self.auto_refresh = False
+        self.auto_rebuild = False
 
+
+Args = Sequence[str]
+Command = Callable[[Args], None]
 
 other_arb_paths = []
 
@@ -148,17 +154,25 @@ def Dline(center: str = None):
         print(f"|>-------------------{center}-------------------")
 
 
-def cmd_add(args: list[str] = ()):
-    D(f"enter a file name to be created. enter \"#\" to quit.")
-    while True:
-        name = C("% ")
-        if name == "#":
-            return
-        valid = validate_file_name(name)
-        if not valid:
-            D(f"invalid file name \"{name}\", plz try again.")
-        else:
-            break
+def cmd_create(args: Args = ()):
+    if len(args) == 1 and args[0] == "help":
+        D("create a new .arb file.")
+        D("args: [name:str]")
+        return
+    paras = split_para(args)
+    if "name" in paras:
+        name = paras["name"]
+    else:
+        D(f"enter a file name to create. enter \"#\" to quit.")
+        while True:
+            name = C("name=")
+            if name == "#":
+                return
+            valid = validate_file_name(name)
+            if not valid:
+                D(f"invalid file name \"{name}\", plz try again.")
+            else:
+                break
     name = suffix_arb(name)
     new = ntpath.join(x.l10n_folder, name)
     tplist, tpmap = load_arb(path=template_path())
@@ -170,88 +184,100 @@ def cmd_add(args: list[str] = ()):
         DLog(f"{new} was created.")
 
 
-def cmd_rename(args: list[str] = ()):
-    D(f"enter old name and then new name. enter \"#\" to quit.")
-    while True:
+def rename_key(template: ArbFile, others: list[ArbFile], old: str, new: str):
+    arbs = others + [template]
+    for arb in arbs:
+        if old in arb.pmap:
+            arb.rename_key(old=old, new=new)
+            Log(f"renamed \"{old}\" to \"{new}\" in \"{arb.file_name()}\".")
+        else:
+            if x.auto_add:
+                p = Pair(key=new, value="")
+                arb.add(p)
+                Log(f"added \"{new}\" in \"{arb.file_name()}\".")
+
+    if x.resort_method is not None:  # auto_resort is enabled
+        resorted = resort.methods[x.resort_method](template.plist, template.pmap)
+        template.plist = resorted
+        if serve_thread is None:
+            rearrange_others(others, template, fill_blank=x.auto_add)
+    for arb in arbs:
+        save_flatten(arb, x.indent, x.keep_unmatched_meta)
+        Log(f"{arb.file_name()} saved.")
+    if x.auto_rebuild:
+        flutter.gen_110n(x.project_root)
+
+
+def cmd_rename(args: Args = ()):
+    if len(args) == 1 and args[0] == "help":
+        D("rename a key in all .arb files.")
+        D("args: [old:str, new:str]")
+        return
+    paras = split_para(args)
+    if "old" in paras and "new" in paras:
+        old = paras["old"]
+        new = paras["new"]
+        if not validate_key(old):
+            D(f"the old key \"{old}\" is invalid.")
+            return
+        if not validate_key(new):
+            D(f"the new key \"{new}\" is invalid.")
+            return
         template_arb = load_arb_from(path=template_path())
         tplist, tpmap = template_arb.plist, template_arb.pmap
-        old = C(f"old=")
-        if old == "#":
-            break
         if old not in tpmap.keys():
-            # try to fuzzy match
-            matched, ratio = fuzzy_match(old, tpmap.keys())
-            if matched is not None:
-                D(f"\"{old}\" isn't in template, do you mean \"{matched}\"?")
-                confirmed = yn(C(f"y/n="))
-                if not confirmed:
-                    D("alright, let's start all over again.")
-                    continue
-                # if confirmed, do nothing
-            else:
-                D(f"\"{old}\" isn't in template, plz check typo.")
-                continue
-        while True:
-            # for getting the
-            new = C(f"new=")
-            if new == "#":
-                break
-            if new == old:
-                D("a new one can't be identical to the old one.")
-            valid = validate_key(new)
-            if not valid:
-                D(f"the new key \"{new}\" is invalid, please enter again.")
-            else:
-                break
+            D(f"\"{old}\" isn't in template.")
+            return
         other_arbs = load_all_arb_in(paths=other_arb_paths)
-        arbs = other_arbs + [template_arb]
-        for arb in arbs:
-            if old in arb.pmap:
-                arb.rename_key(old=old, new=new)
-                Log(f"renamed \"{old}\" to \"{new}\" in \"{arb.file_name()}\".")
-            else:
-                if x.auto_add:
-                    p = Pair(key=new, value="")
-                    arb.add(p)
-                    Log(f"added \"{new}\" in \"{arb.file_name()}\".")
+        rename_key(template_arb, other_arbs, old, new)
+    else:
+        D(f"enter old name and then new name. enter \"#\" to quit.")
+        while True:
+            while True:
+                old = C(f"old=")
+                if old == "#":
+                    break
+                old_valid = validate_key(old)
+                if old_valid:
+                    break
+                else:
+                    D(f"the old key \"{old}\" is invalid, plz try again.")
+                    continue
+            template_arb = load_arb_from(path=template_path())
+            tplist, tpmap = template_arb.plist, template_arb.pmap
+            if old not in tpmap.keys():
+                # try to fuzzy match
+                matched, ratio = fuzzy_match(old, tpmap.keys())
+                if matched is not None:
+                    D(f"\"{old}\" isn't in template, do you mean \"{matched}\"?")
+                    confirmed = yn(C(f"y/n="))
+                    if not confirmed:
+                        D("alright, let's start all over again.")
+                        continue
+                    # if confirmed, do nothing
+                else:
+                    D(f"\"{old}\" isn't in template, plz check typo.")
+                    continue
+            while True:
+                # for getting the
+                new = C(f"new=")
+                if new == "#":
+                    break
+                if new == old:
+                    D("a new one can't be identical to the old one.")
+                new_valid = validate_key(new)
+                if not new_valid:
+                    D(f"the new key \"{new}\" is invalid, plz try again.")
+                else:
+                    break
+            other_arbs = load_all_arb_in(paths=other_arb_paths)
+            rename_key(template_arb, other_arbs, old, new)
+            Dline("[renamed]")
 
-        if x.resort_method is not None:  # auto_resort is enabled
-            resorted = resort.methods[x.resort_method](template_arb.plist, template_arb.pmap)
-            template_arb.plist = resorted
-            if serve_thread is None:
-                rearrange_others(other_arbs, template_arb, fill_blank=x.auto_add)
-        for arb in arbs:
-            save_flatten(arb, x.indent, x.keep_unmatched_meta)
-            Log(f"{arb.file_name()} saved.")
-        if x.auto_refresh:
-            flutter.gen_110n(x.project_root)
-        Dline("[renamed]")
 
-
-# noinspection PyBroadException
-def cmd_resort(args: list[str] = ()):
-    size = len(resort.methods)
-    if size == 0:
-        D("No resort available.")
-        return
-    for index, name in resort.id2methods.items():
-        D(f"{index}: {name}")  # index 2 name
-    D("enter the number of method.")
-    while True:
-        try:
-            inputted = C("method=")
-            if inputted == "#":
-                return
-            i = int(inputted)
-            if 0 <= i < size:
-                break
-            else:
-                D(f"{i} is not in range(0<=..<{size})")
-        except:
-            D("input is invalid, plz try again.")
+def resort_and_rearrange(method: str):
     template_arb = load_arb_from(path=template_path())
-    method_name = resort.id2methods[i]
-    template_arb.plist = resort.methods[method_name](template_arb.plist, template_arb.pmap)
+    template_arb.plist = resort.methods[method](template_arb.plist, template_arb.pmap)
     save_flatten(template_arb)
     rearrange_others_saved_re(other_arb_paths, template_arb.plist,
                               x.indent, x.keep_unmatched_meta,
@@ -259,15 +285,58 @@ def cmd_resort(args: list[str] = ()):
     D("all .arb files were resorted and rearranged.")
 
 
-def cmd_log():
+# noinspection PyBroadException
+def cmd_resort(args: Args = ()):
+    if len(args) == 1 and args[0] == "help":
+        D("resort the template and rearrange others.")
+        D("args: [method:str]")
+        return
+    paras = split_para(args)
+    if "method" in paras:
+        method = paras["method"]
+        if method not in resort.methods:
+            D(f"{method} isn't in [{', '.join(resort.methods.keys())}]")
+        else:
+            resort_and_rearrange(method)
+    else:
+        size = len(resort.methods)
+        if size == 0:
+            D("No resort available.")
+            return
+        for index, name in resort.id2methods.items():
+            D(f"{index}: {name}")  # index 2 name
+        D("enter the number of method.")
+        while True:
+            try:
+                inputted = C("method=")
+                if inputted == "#":
+                    return
+                i = int(inputted)
+                if 0 <= i < size:
+                    break
+                else:
+                    D(f"{i} is not in range(0<=..<{size})")
+            except:
+                D("input is invalid, plz try again.")
+        resort_and_rearrange(resort.id2methods[i])
+
+
+def cmd_log(args: Args = ()):
+    if len(args) == 1 and args[0] == "help":
+        D("display the current log.")
+        return
     for ln in logs:
         D(ln)
 
 
-def cmd_set(args: list[str] = ()):
+def cmd_set(args: Args = ()):
+    settings = x
+    if len(args) == 1 and args[0] == "help":
+        D("set the workplace.")
+        D(f"args: [{', '.join(vars(settings).keys())}]")
+        return
     D("set the workplace")
     D(f"enter \"#\" to quit [set]. enter \"?\" to skip one.")
-    settings = x
     fields = vars(settings)
     for k, v in fields.items():
         D(f"{k}={v}      << former")
@@ -286,7 +355,7 @@ def cmd_set(args: list[str] = ()):
                 break
 
 
-serve_is_running = False
+server_is_running = False
 
 
 class NestedServerTerminal(ui.Terminal):
@@ -300,28 +369,53 @@ class NestedServerTerminal(ui.Terminal):
         Log(*args)
 
 
-def cmd_serve(args: list[str] = ()):
-    global serve_thread, serve_is_running
-    D(f"[serve] will detect changes of \"{x.template_name}\" and rearrange others at background.")
-    D(f"do you want to start the server?")
-    reply = C("y/n=")
-    if reply == "#":
-        return
-    start = yn(reply)
+def stop_serve_task():
+    global serve_thread, server_is_running
+    server_is_running = False
+    serve_thread = None
+    if "serve" in background_tasks:
+        background_tasks.remove("serve")
+
+
+def cmd_serve(args: Args = ()):
+    global serve_thread, server_is_running
+    background = True
+    if len(args) == 1:
+        if args[0] == "help":
+            D("start a server to detect changes and rearrange others at background.")
+            D("args: [background:y/n]")
+            return
+        else:
+            if server_is_running:
+                stop_serve_task()
+                DLog(f"server aborted.")
+                return
+            else:
+                paras = split_para(args)
+                if "background" in paras:
+                    background = yn(paras["background"])
+                start = True
+    else:
+        D(f"[serve] will detect changes of \"{x.template_name}\" and rearrange others at background.")
+        D(f"do you want to start the server?")
+        reply = C("y/n=")
+        if reply == "#":
+            return
+        start = yn(reply)
     if not start:
         return
-    if serve_thread is None:
+    if not server_is_running:
         server_is_running = True
 
         def serve_func():
             serve.start(template_path(), other_arb_paths,
                         x.indent, x.keep_unmatched_meta, fill_blank=True,
                         is_running=lambda: server_is_running,
-                        on_rearranged=lambda: refresh() if x.auto_refresh else None,
+                        on_rearranged=lambda: rebuild() if x.auto_rebuild else None,
                         terminal=NestedServerTerminal())
 
         serve_thread = Thread(target=serve_func)
-        serve_thread.daemon = True
+        serve_thread.daemon = background
         serve_thread.start()
         background_tasks.add("serve")
         DLog(f"server started at background.")
@@ -331,65 +425,85 @@ def cmd_serve(args: list[str] = ()):
         if reply == "#":
             return
         stop = yn(reply)
-        if "serve" in background_tasks:
-            background_tasks.remove("serve")
         if stop:
-            server_is_running = False
+            stop_serve_task()
             DLog(f"server aborted.")
 
 
-def refresh(args: list[str] = ()):
+def rebuild():
     flutter.gen_110n(x.project_root)
 
 
-def cmd_refresh(args: list[str] = ()):
-    D(f"[refresh] will regenerate the .dart file by calling \"flutter gen-l10n\".")
-    refresh()
+def cmd_rebuild(args: Args = ()):
+    tip = f"run \"flutter gen-l10n\" at your project root {x.project_root}."
+    if len(args) == 1 and args[0] == "help":
+        D(tip)
+        return
+    D(tip)
+    rebuild()
 
 
-cmds: dict[str, Callable[[], None]] = {
-    "add": cmd_add,
+cmds: dict[str, Command] = {
+    "create": cmd_create,
     "rename": cmd_rename,
     "resort": cmd_resort,
     "log": cmd_log,
     "set": cmd_set,
     "serve": cmd_serve,
-    "r": cmd_refresh
+    "r": cmd_rebuild
 }
 cmd_names = list(cmds.keys())
 cmd_full_names = ', '.join(cmd_names)
 
 
-def run_cmd(name: str, func: Callable[[], None]):
+def run_cmd(name: str, args: Args = ()):
     Dline(f">>[{name}]<<")
-    func()
+    cmds[name](args)
     Dline(f"<<[{name}]>>")
 
 
-def migrate():
-    while True:
-        D(f"enter \"quit\" or \"#\" to quit migration.")
-        D(f"all cmds: [{cmd_full_names}]")
-        if len(background_tasks) > 0:
-            print_background_tasks()
-        name = C("% ")
-        if name == "quit" or name == "#":
-            return
-        if name in cmd_names:
-            run_cmd(name, cmds[name])
+def migrate(args: Args):
+    if len(args) > 0:
+        cmd = args[0]
+        cmd_args = args[1:] if len(args) > 1 else ()
+        if cmd in cmd_names:
+            run_cmd(cmd, cmd_args)
         else:
-            # try to fuzzy match
-            matched, ratio = fuzzy_match(name, cmd_names)
-            if matched is not None:
-                D(f"cmd \"{name}\" is not found, do you mean \"{matched}\"?")
-                confirmed = yn(C(f"y/n="))
-                if not confirmed:
-                    D("alright, let's start all over again.")
-                else:
-                    run_cmd(matched, cmds[matched])
+            D(f"no such cmd {cmd}")
+        return
+    else:
+        while True:
+            D(f"enter \"quit\" or \"#\" to quit migration.")
+            D(f"all cmds: [{cmd_full_names}]")
+            if len(background_tasks) > 0:
+                print_background_tasks()
+            while True:
+                full_args = C("% ").strip()
+                if len(full_args) > 0:
+                    break
+            if full_args == "quit" or full_args == "#":
+                return
+            parts: list[str] = shlex.split(full_args)
+            if len(parts) == 0:
+                D("no cmd input, plz try again")
+                continue
+            cmd = parts[0]
+            args = parts[1:] if len(parts) > 1 else ()
+            if cmd in cmd_names:
+                run_cmd(cmd, args)
             else:
-                D(f"cmd \"{name}\" is not found, plz try again.")
-        Dline()
+                # try to fuzzy match
+                matched, ratio = fuzzy_match(full_args, cmd_names)
+                if matched is not None:
+                    D(f"cmd \"{full_args}\" is not found, do you mean \"{matched}\"?")
+                    confirmed = yn(C(f"y/n="))
+                    if not confirmed:
+                        D("alright, let's start all over again.")
+                    else:
+                        run_cmd(matched)
+                else:
+                    D(f"cmd \"{full_args}\" is not found, plz try again.")
+            Dline()
 
 
 def init():
@@ -517,14 +631,14 @@ def setup_auto_resort():
 
 # noinspection PyBroadException
 def setup_auto_refresh():
-    D(f"\"auto_refresh\" will re-generate .dart file when any change by migration, \"{x.auto_refresh}\" as default")
+    D(f"\"auto_refresh\" will re-generate .dart file when any change by migration, \"{x.auto_rebuild}\" as default")
     while True:
         while True:
             inputted = C("auto_refresh=")
             if inputted == "#":
                 return 1
             if inputted != "":
-                x.auto_refresh = to_bool(inputted)
+                x.auto_rebuild = to_bool(inputted)
             return
 
 
@@ -582,42 +696,48 @@ def wizard():
     return None
 
 
-def load_workplace_from(args: list[str] = ()):
+def load_workplace_from(args: Args = ()) -> Args:
+    global x
+    last = read_workplace()
+    if last is not None and last.version == migration_version:
+        x = last
     paras = split_para(args)
-    settings = x
-    fields = vars(settings)
+    fields = vars(x)
     for k, v in fields.items():
-        while True:
-            given = From(paras, Get=k, Or=None)
-            if given is not None:
-                cast = try_cast(v, given)
-                if cast is None:
-                    D(f"invalid input, \"{k}\"'s type is \"{type(v).__name__}\".")
-                else:
-                    if hasattr(settings, k):
-                        setattr(settings, k, v)
-                    break
+        given = From(paras, Get=k, Or=None)
+        if given is not None:
+            cast = try_cast(v, given)
+            if cast is None:
+                D(f"invalid input, \"{k}\"'s type is \"{type(v).__name__}\".")
+            else:
+                if hasattr(x, k):
+                    setattr(x, k, v)
+    if "args" in paras:
+        return shlex.split(paras["args"])
+    else:
+        return ()
 
 
-def main(args: list[str] = ()):
+def main(args: Args = ()):
     ui.terminal = MigrationTerminal()
     Dline()
     D(f"welcome to migration v{migration_version} !")
     D("if no input, the default value will be used.")
     D("for y/n question, the enter key means \"yes\".")
     wizard_res = None
+    migrate_args = ()
     if len(args) == 0:
         wizard_res = wizard()
     else:
-        load_workplace_from(args)
+        migrate_args = load_workplace_from(args)
     Dline()
     if wizard_res is None:
         init()
         Dline()
-        migrate()
+        migrate(migrate_args)
     save_workplace(x)
     DLog("workplace saved")
-    D(f"migration exited.")
+    DLog(f"migration exited.")
 
 
 if __name__ == '__main__':
