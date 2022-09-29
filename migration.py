@@ -420,11 +420,12 @@ def cmd_serve(args: Args = ()):
         server_is_running = True
 
         def serve_func():
+            terminal = NestedServerTerminal()
             serve.start(template_path(), other_arb_paths,
                         x.indent, x.keep_unmatched_meta, fill_blank=True,
                         is_running=lambda: server_is_running,
-                        on_rearranged=lambda: rebuild() if x.auto_rebuild else None,
-                        terminal=NestedServerTerminal())
+                        on_rearranged=lambda: rebuild(terminal) if x.auto_rebuild else None,
+                        terminal=terminal)
 
         serve_thread = Thread(target=serve_func)
         serve_thread.daemon = background
@@ -442,8 +443,9 @@ def cmd_serve(args: Args = ()):
             DLog(f"server aborted.")
 
 
-def rebuild():
+def rebuild(terminal: ui.Terminal = ui.terminal):
     flutter.gen_110n(x.project_root)
+    terminal.print_log("flutter gen-10n was called and .dart files were rebuild.")
 
 
 def cmd_rebuild(args: Args = ()):
