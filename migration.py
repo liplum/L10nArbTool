@@ -1,5 +1,3 @@
-from typing import Sequence
-
 import flutter
 import serve
 from rearrange import *
@@ -335,24 +333,36 @@ def cmd_set(args: Args = ()):
         D("set the workplace.")
         D(f"args: [{', '.join(vars(settings).keys())}]")
         return
-    D("set the workplace")
-    D(f"enter \"#\" to quit [set]. enter \"?\" to skip one.")
     fields = vars(settings)
-    for k, v in fields.items():
-        D(f"{k}={v}      << former")
-        while True:
-            inputted = C(f"{k}=")
-            if inputted == "#":
-                return
-            if inputted == "?":
-                break
-            cast = try_cast(v, inputted)
-            if cast is None:
-                D(f"invalid input, \"{k}\"'s type is \"{type(v).__name__}\".")
-            else:
-                if hasattr(settings, k):
-                    setattr(settings, k, v)
-                break
+    if len(args) > 0:
+        paras = split_para(args)
+        for k, v in paras.items():
+            if k in fields:
+                old_v = fields[k]
+                cast = try_cast(old_v, v)
+                if cast is None:
+                    D(f"invalid input, \"{k}\"'s type is \"{type(v).__name__}\".")
+                else:
+                    if hasattr(settings, k):
+                        setattr(settings, k, v)
+    else:
+        D("set the workplace")
+        D(f"enter \"#\" to quit [set]. enter \"?\" to skip one.")
+        for k, v in fields.items():
+            D(f"{k}={v}      << former")
+            while True:
+                inputted = C(f"{k}=")
+                if inputted == "#":
+                    return
+                if inputted == "?":
+                    break
+                cast = try_cast(v, inputted)
+                if cast is None:
+                    D(f"invalid input, \"{k}\"'s type is \"{type(v).__name__}\".")
+                else:
+                    if hasattr(settings, k):
+                        setattr(settings, k, v)
+                    break
 
 
 server_is_running = False
