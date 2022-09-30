@@ -234,7 +234,7 @@ def cmd_rename(args: Args = ()):
             while True:
                 old = C(f"old=")
                 if old == "#":
-                    break
+                    return
                 old_valid = validate_key(old)
                 if old_valid:
                     break
@@ -248,7 +248,10 @@ def cmd_rename(args: Args = ()):
                 matched, ratio = fuzzy_match(old, tpmap.keys())
                 if matched is not None:
                     D(f"\"{old}\" isn't in template, do you mean \"{matched}\"?")
-                    confirmed = yn(C(f"y/n="))
+                    inputted = C(f"y/n=")
+                    if inputted == "#":
+                        return
+                    confirmed = yn(inputted)
                     if not confirmed:
                         D("alright, let's start all over again.")
                         continue
@@ -260,7 +263,7 @@ def cmd_rename(args: Args = ()):
                 # for getting the
                 new = C(f"new=")
                 if new == "#":
-                    break
+                    return
                 if new == old:
                     D("a new one can't be identical to the old one.")
                 new_valid = validate_key(new)
@@ -424,7 +427,7 @@ def cmd_serve(args: Args = ()):
             serve.start(template_path(), other_arb_paths,
                         x.indent, x.keep_unmatched_meta, fill_blank=True,
                         is_running=lambda: server_is_running,
-                        on_rearranged=lambda: rebuild(terminal) if x.auto_rebuild else None,
+                        on_acted=lambda: rebuild(terminal) if x.auto_rebuild else None,
                         terminal=terminal)
 
         serve_thread = Thread(target=serve_func)

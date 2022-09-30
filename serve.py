@@ -1,3 +1,4 @@
+import func
 from arb import *
 import os
 import ntpath
@@ -32,21 +33,17 @@ def serve(l10n_dir: str, prefix: str, template_suffix: str, indent=2, keep_unmat
     start(template_path, others_path, indent, keep_unmatched_meta, fill_blank)
 
 
-def _forever() -> bool:
-    return True
-
-
-def _do_nothing():
-    pass
-
-
+# noinspection PyBroadException
 def start(
         template_path: str, other_paths: list[str],
         indent=2, keep_unmatched_meta=False, fill_blank=True,
-        is_running: Callable[[], bool] = _forever,
-        on_rearranged: Callable[[], None] = _do_nothing,
+        is_running: Callable[[], bool] = func.forever,
+        on_acted: Callable[[], None] = func.do_nothing,
         terminal: ui.Terminal = ui.terminal
 ):
+    def log_rearrange(path):
+        terminal.log(f"{path} was rearranged.")
+
     last_stamp = 0
     last_plist = []
     while is_running():
@@ -57,9 +54,12 @@ def start(
                 tplist, tpmap = load_arb(path=template_path)
                 if is_key_changed(last_plist, tplist):
                     last_plist = tplist
-                    re.rearrange_others_saved_re(other_paths, tplist, indent, keep_unmatched_meta, fill_blank)
+                    re.rearrange_others_saved_re(
+                        other_paths, tplist,
+                        indent, keep_unmatched_meta, fill_blank,
+                        log_rearrange)
                     terminal.print_log(f"l10n rearranged.")
-                    on_rearranged()
+                    on_acted()
             except:
                 pass
         time.sleep(1)
