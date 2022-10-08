@@ -403,6 +403,26 @@ def stop_serve_task():
     serve_thread = None
     if "serve" in background_tasks:
         background_tasks.remove("serve")
+    DLog(f"server aborted.")
+
+
+def start_serve_task(background=True):
+    global serve_thread, server_is_running
+
+    def serve_func():
+        terminal = NestedServerTerminal()
+        serve.start(template_path(), other_arb_paths,
+                    x.indent, x.keep_unmatched_meta, fill_blank=True,
+                    is_running=lambda: server_is_running,
+                    on_acted=lambda: rebuild(terminal) if x.auto_rebuild else None,
+                    terminal=terminal)
+
+    server_is_running = True
+    serve_thread = Thread(target=serve_func)
+    serve_thread.daemon = background
+    serve_thread.start()
+    background_tasks.add("serve")
+    DLog(f"server started at background.")
 
 
 def cmd_serve(args: Args = ()):
@@ -416,47 +436,29 @@ def cmd_serve(args: Args = ()):
         else:
             if server_is_running:
                 stop_serve_task()
-                DLog(f"server aborted.")
-                return
             else:
                 paras = split_para(args)
                 if "background" in paras:
                     background = yn(paras["background"])
-                start = True
+                start_serve_task(background)
     else:
         D(f"[serve] will detect changes of \"{x.template_name}\" and rearrange others at background.")
-        D(f"do you want to start the server?")
-        reply = C("y/n=")
-        if reply == "#":
-            return
-        start = yn(reply)
-    if not start:
-        return
-    if not server_is_running:
-        server_is_running = True
-
-        def serve_func():
-            terminal = NestedServerTerminal()
-            serve.start(template_path(), other_arb_paths,
-                        x.indent, x.keep_unmatched_meta, fill_blank=True,
-                        is_running=lambda: server_is_running,
-                        on_acted=lambda: rebuild(terminal) if x.auto_rebuild else None,
-                        terminal=terminal)
-
-        serve_thread = Thread(target=serve_func)
-        serve_thread.daemon = background
-        serve_thread.start()
-        background_tasks.add("serve")
-        DLog(f"server started at background.")
-    else:
-        D("server has been started, do you want to stop it?")
-        reply = C("y/n=")
-        if reply == "#":
-            return
-        stop = yn(reply)
-        if stop:
-            stop_serve_task()
-            DLog(f"server aborted.")
+        if not server_is_running:
+            D(f"do you want to start the server?")
+            reply = C("y/n=")
+            if reply == "#":
+                return
+            start = yn(reply)
+            if start:
+                start_serve_task(background)
+        else:
+            D("server has been started, do you want to stop it?")
+            reply = C("y/n=")
+            if reply == "#":
+                return
+            stop = yn(reply)
+            if stop:
+                stop_serve_task()
 
 
 def rebuild(terminal: ui.Terminal = ui.terminal):
