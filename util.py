@@ -170,3 +170,33 @@ def validate_file_name(name: str) -> bool:
         if char in invalid_file_name_parts:
             return False
     return True
+
+
+class UpdatableFile:
+    path: str
+    last_stamp: float
+    cache: str | None
+    default: str | None
+
+    def __init__(self, path):
+        self.path = path
+        self.last_stamp = 0.0
+        self.cache = None
+
+    def exists(self) -> bool:
+        return os.path.isfile(self.path)
+
+    def is_changed(self, *, consume: bool = True) -> bool:
+        cur_stamp = os.stat(self.path).st_mtime
+        changed = cur_stamp != self.last_stamp
+        if consume:
+            self.last_stamp = cur_stamp
+        return changed
+
+    def read(self) -> str | None:
+        if self.exists():
+            if self.is_changed(consume=True):
+                self.cache = read_fi(self.path)
+            return self.cache
+        else:
+            return self.default

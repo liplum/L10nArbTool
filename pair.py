@@ -41,7 +41,7 @@ def convert_pairs(pairs: RawPairList) -> tuple[PairList, PairMap]:
     di: dict[str, Pair] = {}
     li: list[Pair] = []
     for key, value in pairs:
-        if key.startswith("@"):  # is meta key
+        if key.startswith("@") and not key.startswith("@@"):  # is meta key
             raw_key = key.removeprefix("@")
             if raw_key in di:
                 di[raw_key].set_meta(value)

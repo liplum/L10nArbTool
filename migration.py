@@ -14,7 +14,7 @@ _cache_folder = ".l10n_arb_tool"
 _log_folder = "log"
 logs = []
 serve_thread: Thread | None = None
-migration_version = 1
+migration_version = 2
 background_tasks = set()
 
 
@@ -31,7 +31,15 @@ def log_path():
     return ntpath.join(log_folder(), f"{d}.log")
 
 
+def l10n_dir():
+    return ntpath.join(x.project_root, x.l10n_folder)
+
+
 class Workplace:
+    hidden_fields = {
+        "version", "run_times"
+    }
+
     def __init__(self):
         self.version = migration_version
         self.indent = 2
@@ -45,6 +53,7 @@ class Workplace:
         self.read_workplace = True
         self.auto_read_workplace = False
         self.auto_rebuild = False
+        self.run_times = 0
 
 
 Args = Sequence[str]
@@ -68,7 +77,7 @@ def save_workplace(workplace: Workplace = x):
 
 
 # noinspection PyBroadException
-def read_workplace() -> Workplace | None:
+def restore_workplace() -> Workplace | None:
     path = workplace_path()
     raw = try_read_fi(path)
     workplace = None
@@ -138,11 +147,11 @@ class MigrationTerminal(ui.Terminal):
 
 
 def template_path():
-    return ntpath.join(x.l10n_folder, x.template_name)
+    return ntpath.join(l10n_dir(), x.template_name)
 
 
 def template_path_abs():
-    return os.path.abspath(ntpath.join(x.l10n_folder, x.template_name))
+    return os.path.abspath(ntpath.join(l10n_dir(), x.template_name))
 
 
 def Dline(center: str = None):
@@ -172,7 +181,7 @@ def cmd_create(args: Args = ()):
             else:
                 break
     name = suffix_arb(name)
-    new = ntpath.join(x.l10n_folder, name)
+    new = ntpath.join(l10n_dir(), name)
     tplist, tpmap = load_arb(path=template_path())
     if x.auto_add:
         rearrange_others_saved_re([new], tplist, x.indent, x.keep_unmatched_meta, fill_blank=True)
@@ -334,12 +343,14 @@ def cmd_set(args: Args = ()):
     settings = x
     if len(args) == 1 and args[0] == "help":
         D("set the workplace.")
-        D(f"args: [{', '.join(vars(settings).keys())}]")
+        D(f"args: [{', '.join(vars(settings).keys() - settings.hidden_fields)}]")
         return
     fields = vars(settings)
     if len(args) > 0:
         paras = split_para(args)
         for k, v in paras.items():
+            if k in settings.hidden_fields:
+                continue
             if k in fields:
                 old_v = fields[k]
                 cast = try_cast(template=old_v, attempt=v)
@@ -354,6 +365,8 @@ def cmd_set(args: Args = ()):
         D("set the workplace")
         D(f"enter \"#\" to quit [set]. enter \"?\" to skip one.")
         for k, v in fields.items():
+            if k in settings.hidden_fields:
+                continue
             D(f"{k}={v}      << former")
             while True:
                 inputted = C(f"{k}=")
@@ -452,12 +465,16 @@ def rebuild(terminal: ui.Terminal = ui.terminal):
 
 
 def cmd_rebuild(args: Args = ()):
-    tip = f"run \"flutter gen-l10n\" at your project root {x.project_root}."
     if len(args) == 1 and args[0] == "help":
-        D(tip)
+        D(f"run \"flutter gen-l10n\" at your project root \"{x.project_root}\".")
+        D(f"flutter should be added to your {env_var_str('PATH')}.")
         return
-    D(tip)
+    D(f"run \"flutter gen-l10n\" at your project root \"{x.project_root}\".")
     rebuild()
+
+
+def cmd_try(args: Args = ()):
+    pass
 
 
 cmds: dict[str, Command] = {
@@ -479,6 +496,10 @@ def run_cmd(name: str, args: Args = ()):
     Dline(f"<<[{name}]>>")
 
 
+def run_try(args: Args = ()):
+    pass
+
+
 def migrate(args: Args):
     if len(args) > 0:
         cmd = args[0]
@@ -489,11 +510,16 @@ def migrate(args: Args):
             D(f"no such cmd {cmd}")
         return
     else:
+        try_and_see_done = False
         while True:
-            D(f"enter \"quit\" or \"#\" to quit migration.")
+            D(f"enter \"quit\" or \"#\" to quit migration. all cmds allow a \"help\" arg.")
             D(f"all cmds: [{cmd_full_names}]")
             if len(background_tasks) > 0:
                 print_background_tasks()
+            if x.run_times <= 0 and not try_and_see_done:
+                D(f"hello! since it's your first time to use migration, there is a cmd that can guide you.")
+                D(f"enter cmd \"try\" to get help about migration.")
+                try_and_see_done = True
             while True:
                 full_args = C("% ").strip()
                 if len(full_args) > 0:
@@ -525,17 +551,18 @@ def migrate(args: Args):
 
 def init():
     D("initializing .arb files...")
-    for f in os.listdir(x.l10n_folder):
-        full = ntpath.join(x.l10n_folder, f)
+    l10n_folder = l10n_dir()
+    for f in os.listdir(l10n_folder):
+        full = ntpath.join(l10n_folder, f)
         if os.path.isfile(full):
             head, tail = ntpath.split(full)
             if tail != x.template_name and tail.endswith(".arb") and tail.startswith(x.prefix):
                 other_arb_paths.append(full)
     Dline("[workplace]")
-    D(f"{x.indent=},{x.prefix=},{x.l10n_folder=},{x.auto_add=}")
+    D(f"{x.indent=},{x.prefix=},{l10n_folder=},{x.auto_add=}")
     D(f"{x.resort_method=}")
     Dline("[workplace]")
-    D(f"l10n folder locates at {os.path.abspath(x.l10n_folder)}")
+    D(f"l10n folder locates at {os.path.abspath(l10n_folder)}")
     D(f"all .arb file paths: [")
     for p in other_arb_paths:
         D(f"{os.path.abspath(p)}")
@@ -571,7 +598,8 @@ def setup_project_root():
 
 
 def setup_l10n_folder():
-    D(f"please enter path of l10n folder, \"{x.l10n_folder}\" as default")
+    D(f"please enter path of l10n folder relative to the project root <\"{x.project_root}\">.")
+    D(f"\"{x.l10n_folder}\" as default")
     while True:
         inputted = C("l10n_folder=")
         if inputted == "#":
@@ -593,9 +621,9 @@ def setup_prefix():
 
 
 def setup_template_name():
-    D(f"please enter template file name without extension, \"{x.template_name}\" as default")
+    D(f"please enter template file name with extension, \"{x.template_name}\" as default")
     while True:
-        inputted = C("folder=")
+        inputted = C("template_name=")
         if inputted == "#":
             return 1
         if inputted != "":
@@ -675,7 +703,7 @@ def wizard():
     global x
     D("hello, I'm the migration wizard.")
     D("enter \"#\" to go back to previous setup.")
-    last = read_workplace()
+    last = restore_workplace()
     if last is not None and last.version == migration_version:
         if last.auto_read_workplace:
             x = last
@@ -715,7 +743,7 @@ def wizard():
 
 def load_workplace_from(args: Args = ()) -> Args:
     global x
-    last = read_workplace()
+    last = restore_workplace()
     if last is not None and last.version == migration_version:
         x = last
     paras = split_para(args)
@@ -754,6 +782,7 @@ def main(args: Args = ()):
         init()
         Dline()
         migrate(migrate_args)
+    x.run_times += 1
     save_workplace(x)
     DLog("workplace saved")
     DLog(f"migration exited.")

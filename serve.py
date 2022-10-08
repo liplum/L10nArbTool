@@ -1,10 +1,10 @@
 import func
 from arb import *
-import os
 import ntpath
 import rearrange as re
 import time
 import ui
+from util import UpdatableFile
 
 required_para = [
     "prefix",
@@ -44,12 +44,13 @@ def start(
     def log_rearrange(path):
         terminal.log(f"{path} was rearranged.")
 
-    last_stamp = 0
+    template_fi = UpdatableFile(template_path)
     last_plist = []
     while is_running():
-        stamp = os.stat(template_path).st_mtime
-        if stamp != last_stamp:
-            last_stamp = stamp
+        if not template_fi.exists():
+            terminal.print_log(f"{template_path} doesn't exist.")
+            return
+        if template_fi.is_changed():
             try:
                 tplist, tpmap = load_arb(path=template_path)
                 if is_key_changed(last_plist, tplist):
