@@ -11,6 +11,7 @@ class Terminal:
 
     def print_log(self, *args):
         self.print(*args)
+        self.log(*args)
 
 
 terminal = Terminal()
