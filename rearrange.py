@@ -77,7 +77,7 @@ def rearrange_others(arbs: list[ArbFile], template: ArbFile, fill_blank=False):
 def rearrange_others_saved_re(
         others_path: list[str], template_plist: PairList,
         indent=2, keep_unmatched_meta=False, fill_blank=False,
-        on_rearranged: Callable[[str], None] = func.func1
+        on_rearranged: Callable[[str], None] = lambda _: None
 ):
     others_arb = []
     for other_path in others_path:

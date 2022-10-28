@@ -2,7 +2,7 @@ from functools import cmp_to_key
 import tags
 import weights
 import split
-from arb import *
+from .arb import *
 
 required_para = [
     "target",

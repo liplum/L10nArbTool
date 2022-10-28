@@ -1,10 +1,9 @@
-import func
-from arb import *
+from .arb import *
 import ntpath
 import rearrange as re
 import time
 import ui
-from util import UpdatableFile
+from .util import UpdatableFile
 
 required_para = [
     "prefix",
@@ -37,8 +36,8 @@ def serve(l10n_dir: str, prefix: str, template_suffix: str, indent=2, keep_unmat
 def start(
         template_path: str, other_paths: list[str],
         indent=2, keep_unmatched_meta=False, fill_blank=True,
-        is_running: Callable[[], bool] = func.forever,
-        on_acted: Callable[[], None] = func.do_nothing,
+        is_running: Callable[[], bool] = lambda:True,
+        on_acted: Callable[[], None] = lambda: None,
         terminal: ui.Terminal = ui.terminal
 ):
     def log_rearrange(path):
