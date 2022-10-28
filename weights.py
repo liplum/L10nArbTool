@@ -1,4 +1,4 @@
-from tags import *
+from .tags import *
 """
 You can customize tags here.
 """

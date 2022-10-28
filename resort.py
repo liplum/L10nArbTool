@@ -1,7 +1,7 @@
 from functools import cmp_to_key
-import tags
-import weights
-import split
+from . import tags
+from . import weights
+from . import split
 from .arb import *
 
 required_para = [
@@ -76,6 +76,7 @@ id2methods: dict[int, str] = {
     2: Lexicographical,
     3: Tags,
 }
+
 
 def wrapper(args):
     paras = split_para(args)

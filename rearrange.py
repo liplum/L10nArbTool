@@ -1,7 +1,6 @@
 from json import JSONDecodeError
 
-import func
-from arb import *
+from .arb import *
 import os
 import ntpath
 

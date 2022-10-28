@@ -1,8 +1,8 @@
 import sys
-import resort
-import rearrange
-import serve
-import migration
+from . import resort
+from . import rearrange
+from . import serve
+from . import migration
 
 tittle = """
    ██╗   ██╗   █████╗   ███╗   ██╗

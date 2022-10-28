@@ -1,5 +1,5 @@
-import pair
-import util
+from . import pair
+from . import util
 
 
 class Tag:

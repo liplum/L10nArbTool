@@ -1,8 +1,8 @@
 from .arb import *
 import ntpath
-import rearrange as re
+from . import rearrange as re
 import time
-import ui
+from . import ui
 from .util import UpdatableFile
 
 required_para = [

@@ -1,7 +1,7 @@
 import ntpath
 
-from util import *
-from pair import *
+from .util import *
+from .pair import *
 import json
 
 
