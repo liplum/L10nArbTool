@@ -1,4 +1,4 @@
-import ntpath
+import os.path
 
 from .util import *
 from .pair import *
@@ -16,7 +16,7 @@ class ArbFile:
         self.pmap = pmap
 
     def split(self) -> tuple[str, str]:
-        return ntpath.split(self.path)
+        return os.path.split(self.path)
 
     def file_name(self) -> str:
         return self.split()[1]
@@ -77,7 +77,7 @@ def load_all_arb_in(
     if folder is not None and paths is None:
         paths = []
         for f in os.listdir(folder):
-            full = ntpath.join(folder, f)
+            full = os.path.join(folder, f)
             if os.path.isfile(full):
                 if f.endswith(".arb"):
                     paths.append(full)

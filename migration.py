@@ -3,7 +3,7 @@ from . import serve
 from .rearrange import *
 from . import resort
 from datetime import datetime, date
-import ntpath
+import os.path
 from . import ui
 from threading import Thread
 import shlex
@@ -19,7 +19,7 @@ background_tasks = set()
 
 
 def in_cache(sub: str) -> str:
-    return ntpath.join(_cache_folder, sub)
+    return os.path.join(_cache_folder, sub)
 
 
 def log_folder():
@@ -28,11 +28,11 @@ def log_folder():
 
 def log_path():
     d = date.today().isoformat()
-    return ntpath.join(log_folder(), f'{d}.log')
+    return os.path.join(log_folder(), f'{d}.log')
 
 
 def l10n_dir():
-    return ntpath.join(x.project_root, x.l10n_folder)
+    return os.path.join(x.project_root, x.l10n_folder)
 
 
 class Workplace:
@@ -160,11 +160,11 @@ class MigrationTerminal(ui.Terminal):
 
 
 def template_path():
-    return ntpath.join(l10n_dir(), x.template_name)
+    return os.path.join(l10n_dir(), x.template_name)
 
 
 def template_path_abs():
-    return os.path.abspath(ntpath.join(l10n_dir(), x.template_name))
+    return os.path.abspath(os.path.join(l10n_dir(), x.template_name))
 
 
 def Dline(center: str = None):
@@ -194,7 +194,7 @@ def cmd_create(args: Args = ()):
             else:
                 break
     name = suffix_arb(name)
-    new = ntpath.join(l10n_dir(), name)
+    new = os.path.join(l10n_dir(), name)
     tplist, tpmap = load_arb(path=template_path())
     if x.auto_add:
         rearrange_others_saved_re([new], tplist, x.indent, x.keep_unmatched_meta, fill_blank=True)
@@ -561,9 +561,9 @@ def init():
     D('initializing .arb files...')
     l10n_folder = l10n_dir()
     for f in os.listdir(l10n_folder):
-        full = ntpath.join(l10n_folder, f)
+        full = os.path.join(l10n_folder, f)
         if os.path.isfile(full):
-            head, tail = ntpath.split(full)
+            head, tail = os.path.split(full)
             if tail != x.template_name and tail.endswith('.arb') and tail.startswith(x.prefix):
                 other_arb_paths.append(full)
     Dline('[workplace]')
